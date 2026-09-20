@@ -124,13 +124,14 @@
         <div id="float-container" class="absolute inset-0 pointer-events-none z-20"></div>
 
         <button id="tap-btn" class="w-48 h-48 rounded-full bg-zinc-900 border-2 border-zinc-700 hover:border-white transition-all duration-150 flex flex-col items-center justify-center gap-2 shadow-2xl relative group">
-          <svg class="toilet-svg w-36 h-auto text-white" viewBox="0 0 200 200" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="36" y1="196" x2="186" y2="196" stroke-opacity="0.25"/>
-            <rect x="40" y="58" width="22" height="12" rx="5"/>
-            <rect x="26" y="70" width="50" height="116" rx="11"/>
-            <path d="M76 126 L76 142 Q76 184 120 184 L154 184 Q182 184 182 154 L182 126"/>
-            <path d="M76 126 L182 126" stroke-width="6"/>
-            <rect class="toilet-lid" x="74" y="106" width="112" height="18" rx="9"/>
+          <svg class="toilet-svg w-40 h-auto text-white" viewBox="0 0 220 200" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="28" y1="196" x2="198" y2="196" stroke-opacity="0.25"/>
+            <rect x="118" y="178" width="52" height="18" rx="6"/>
+            <rect x="34" y="74" width="50" height="66" rx="12"/>
+            <rect x="46" y="60" width="26" height="14" rx="6"/>
+            <path d="M84 138 L84 156 Q84 180 116 180 L146 180 Q184 180 184 152 L184 138 Q184 130 176 130 L92 130 Q84 130 84 138 Z"/>
+            <rect x="80" y="126" width="110" height="12" rx="6"/>
+            <rect class="toilet-lid" x="78" y="110" width="114" height="16" rx="8"/>
           </svg>
           <span class="text-xs tracking-widest text-zinc-400 font-bold group-active:text-white">点击打卡</span>
         </button>
@@ -380,36 +381,58 @@
       if (!settings.sound) return;
       const ctx = getAudioCtx();
       if (!ctx) return;
-      try {
-        const t = ctx.currentTime;
 
-        // 水流：白噪声经过低通滤波，模拟“哗啦”冲水
-        const src = ctx.createBufferSource();
-        src.buffer = getNoiseBuffer(ctx);
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1400, t);
-        filter.frequency.exponentialRampToValueAtTime(260, t + 0.9);
-        const waterGain = ctx.createGain();
-        waterGain.gain.setValueAtTime(0.0001, t);
-        waterGain.gain.exponentialRampToValueAtTime(0.5, t + 0.1);
-        waterGain.gain.setValueAtTime(0.4, t + 0.55);
-        waterGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.05);
-        src.connect(filter); filter.connect(waterGain); waterGain.connect(ctx.destination);
-        src.start(t); src.stop(t + 1.1);
+      const schedule = () => {
+        try {
+          const t = ctx.currentTime;
 
-        // 盖子合上的“咚”声
-        const osc = ctx.createOscillator();
-        const thudGain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(160, t + 0.6);
-        osc.frequency.exponentialRampToValueAtTime(70, t + 0.7);
-        thudGain.gain.setValueAtTime(0.0001, t + 0.6);
-        thudGain.gain.exponentialRampToValueAtTime(0.5, t + 0.62);
-        thudGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.72);
-        osc.connect(thudGain); thudGain.connect(ctx.destination);
-        osc.start(t + 0.6); osc.stop(t + 0.72);
-      } catch (e) { console.error('Audio error:', e); }
+          // 主水流：白噪声 + 低通滤波（频率下扫），幅度快速冲起后渐弱
+          const src = ctx.createBufferSource();
+          src.buffer = getNoiseBuffer(ctx);
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(2200, t);
+          filter.frequency.exponentialRampToValueAtTime(320, t + 0.8);
+          const water = ctx.createGain();
+          water.gain.setValueAtTime(0.0001, t);
+          water.gain.exponentialRampToValueAtTime(0.85, t + 0.12);
+          water.gain.setValueAtTime(0.5, t + 0.5);
+          water.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+          src.connect(filter); filter.connect(water); water.connect(ctx.destination);
+          src.start(t); src.stop(t + 1.15);
+
+          // 结尾“咕噜”回水：低频正弦下滑
+          const osc = ctx.createOscillator();
+          const oscGain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(200, t + 0.45);
+          osc.frequency.exponentialRampToValueAtTime(80, t + 1.0);
+          oscGain.gain.setValueAtTime(0.0001, t + 0.45);
+          oscGain.gain.exponentialRampToValueAtTime(0.18, t + 0.6);
+          oscGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.05);
+          osc.connect(oscGain); oscGain.connect(ctx.destination);
+          osc.start(t + 0.45); osc.stop(t + 1.05);
+
+          // 盖子合上“咚”一声
+          const thud = ctx.createOscillator();
+          const thudGain = ctx.createGain();
+          thud.type = 'triangle';
+          thud.frequency.setValueAtTime(150, t + 0.62);
+          thud.frequency.exponentialRampToValueAtTime(60, t + 0.72);
+          thudGain.gain.setValueAtTime(0.0001, t + 0.62);
+          thudGain.gain.exponentialRampToValueAtTime(0.5, t + 0.64);
+          thudGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.74);
+          thud.connect(thudGain); thudGain.connect(ctx.destination);
+          thud.start(t + 0.62); thud.stop(t + 0.74);
+        } catch (e) { console.error('Audio error:', e); }
+      };
+
+      // 先唤醒音频上下文再调度，确保首次点击也能出声
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(schedule).catch(() => {});
+      } else {
+        schedule();
+      }
     }
 
     function triggerVibration() {
