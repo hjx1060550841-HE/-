@@ -1,5 +1,5 @@
 // 蹲蹲记 Service Worker —— 缓存核心资源，支持离线打开
-const CACHE_NAME = 'dundunji-v1.0.0';
+const CACHE_NAME = 'dundunji-v1.1.0';
 const ASSETS = [
   './',
   './index.html',
